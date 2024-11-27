@@ -1,0 +1,79 @@
+packages
+```{r}
+require(jsonlite)
+require(lubridate)
+require(dplyr)
+require(tidyr)
+require(stringr)
+```
+
+1.	Convert the data source format (JSON) to the dataframe. (2M)
+```{r}
+df <- fromJSON(file.choose())
+head(df)
+```
+
+2.	Tidy up the date format to become readable, i.e., 2nd Sep 2021 => 2/9/2021. (8M)
+```{r}
+df$date <- gsub("(\\d+)(st|nd|rd|th)", "\\1", df$date)
+df$date <- dmy(df$date)
+df$date <- format(df$date, "%e/%m/%Y")
+
+head(df)
+```
+
+3.	Fill all missing data with 0s except the sq. column. (2M)
+```{r}
+df_filled <- df
+
+for (col in names(df_filled)) {
+    if (col != "sq.") {
+        df_filled[[col]][is.na(df_filled[[col]])] <- 0
+    }
+}
+head(df_filled)
+```
+
+4.	Aggregate the number of corresponding facilities (Bed, Baths, Reception). (5M)
+```{r}
+df_filled$beds <- as.numeric(as.character(df_filled$beds))
+df_filled$bed <- as.numeric(as.character(df_filled$bed))
+df_filled$baths <- as.numeric(as.character(df_filled$baths))
+df_filled$bath <- as.numeric(as.character(df_filled$bath))
+df_filled$reception <- as.numeric(as.character(df_filled$reception))
+df_filled$receptions <- as.numeric(as.character(df_filled$receptions))
+
+df_filled$TotalBeds <- rowSums(df_filled[c("beds", "bed")], na.rm = TRUE)
+df_filled$TotalBaths <- rowSums(df_filled[c("baths", "bath")], na.rm = TRUE)
+df_filled$TotalReceptions <- rowSums(df_filled[c("reception", "receptions")], na.rm = TRUE)
+
+df_filled <- df_filled[ , !(names(df_filled) %in% c("bed", "beds", "bath", "baths", "reception", "receptions"))]
+
+head(df_filled)
+```
+
+5.	Extract Property type from “types” column. (10M)
+```{r}
+df_filled$types <- tolower(df_filled$types)
+df_filled$PropertyType <- str_replace(df_filled$types, ".*?\\d+ bed (.*) for sale.*", "\\1")
+
+df_filled$PropertyType <- gsub("town house", "terraced house", df_filled$PropertyType)
+df_filled$PropertyType <- gsub("end terrace house", "terraced house", df_filled$PropertyType)
+df_filled$PropertyType <- gsub("flats", "flat", df_filled$PropertyType)
+
+df_filled$PropertyType <- gsub(" for sale", "", df_filled$PropertyType)
+df_filled$PropertyType <- gsub("block of ", "", df_filled$PropertyType)
+
+
+df_filled$PropertyType <- trimws(as.character(df_filled$PropertyType))
+
+unique(df_filled$PropertyType)
+```
+
+6.	Output your pre-processed data to CSV format called ”Project_Housing.csv”. (3M)
+```{r}
+write.csv(df_filled, "Project_Housing.csv", row.names = FALSE)
+```
+
+
+
